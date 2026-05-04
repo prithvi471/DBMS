@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="header">
+    <h1>Order Details</h1>
+    <a href="/orders" class="btn btn-outline">&larr; Back to Orders</a>
+</div>
+
+<div class="card" style="margin-bottom: 20px;">
+    <h2>Order #<span id="display-order-id"></span></h2>
+</div>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>Detail ID</th>
+                <th>Product</th>
+                <th>Unit Price</th>
+                <th>Quantity</th>
+                <th>Subtotal</th>
+            </tr>
+        </thead>
+        <tbody id="details-body">
+            <tr><td colspan="5">Loading...</td></tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    const params = new URLSearchParams(window.location.search);
+    const orderId = params.get('id');
+    
+    if(!orderId) {
+        document.getElementById('details-body').innerHTML = '<tr><td colspan="5">No Order ID provided</td></tr>';
+        return;
+    }
+    
+    document.getElementById('display-order-id').textContent = orderId;
+    
+    try {
+        const data = await apiRequest(`/api/orders/${orderId}/details`);
+        const tbody = document.getElementById('details-body');
+        
+        let total = 0;
+        tbody.innerHTML = data.map(d => {
+            const sub = d.price * d.quantity;
+            total += sub;
+            return `
+                <tr>
+                    <td>${d.order_detail_id}</td>
+                    <td>${d.product_name}</td>
+                    <td>$${d.price}</td>
+                    <td>${d.quantity}</td>
+                    <td>$${sub.toFixed(2)}</td>
+                </tr>
+            `;
+        }).join('');
+        
+        if(data.length > 0) {
+            tbody.innerHTML += `
+                <tr>
+                    <td colspan="4" style="text-align: right; font-weight: bold;">Total:</td>
+                    <td style="font-weight: bold;">$${total.toFixed(2)}</td>
+                </tr>
+            `;
+        } else {
+            tbody.innerHTML = '<tr><td colspan="5">No details found for this order</td></tr>';
+        }
+    } catch(e) {}
+});
+</script>
+{% endblock %}

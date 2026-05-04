@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="header">
+    <h1>Inventory</h1>
+    <button class="btn btn-primary" onclick="openInventoryModal()">Add Inventory Entry</button>
+</div>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Product</th>
+                <th>Warehouse</th>
+                <th>Quantity Available</th>
+                <th>Last Updated</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="inventory-body">
+            <tr><td colspan="6">Loading...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal -->
+<!-- Modals for adding and updating -->
+<div id="inventory-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modal-title">Add/Update Inventory</h2>
+            <button class="close-btn" onclick="closeModal('inventory-modal')">&times;</button>
+        </div>
+        <form id="inventory-form" onsubmit="event.preventDefault(); saveInventory();">
+            <input type="hidden" name="inventory_id" id="inventory_id">
+            <div class="form-group" id="prod-group">
+                <label>Product</label>
+                <select name="product_id" id="product_id" class="form-control" required></select>
+            </div>
+            <div class="form-group" id="wh-group">
+                <label>Warehouse</label>
+                <select name="warehouse_id" id="warehouse_id" class="form-control" required></select>
+            </div>
+            <div class="form-group">
+                <label>Quantity Available</label>
+                <input type="number" name="quantity_available" id="quantity_available" class="form-control" required>
+            </div>
+            <button type="submit" class="btn btn-success">Save</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let editingId = null;
+
+async function loadInventory() {
+    try {
+        const [inv, prods, whs] = await Promise.all([
+            apiRequest('/api/Inventory'),
+            apiRequest('/api/Product'),
+            apiRequest('/api/Warehouse')
+        ]);
+        
+        // Reorder level dictionary for highlighting
+        const reorderMap = {};
+        prods.forEach(p => reorderMap[p.product_id] = p.reorder_level);
+        
+        const tbody = document.getElementById('inventory-body');
+        tbody.innerHTML = inv.map(i => {
+            const isLowStock = i.quantity_available < reorderMap[i.product_id];
+            return `
+                <tr class="${isLowStock ? 'low-stock' : ''}">
+                    <td>${i.inventory_id}</td>
+                    <td>${i.product_name || i.product_id}</td>
+                    <td>${i.warehouse_name || i.warehouse_id}</td>
+                    <td><b>${i.quantity_available}</b></td>
+                    <td>${i.last_updated ? i.last_updated : ''}</td>
+                    <td>
+                        <button class="btn btn-outline" onclick='updateQty(${JSON.stringify(i).replace(/'/g, "&apos;")})'>Update Qty</button>
+                        <button class="btn btn-danger" onclick="deleteInventory(${i.inventory_id})">Delete</button>
+                    </td>
+                </tr>
+            `;
+        }).join('') || '<tr><td colspan="6">No inventory data</td></tr>';
+        
+        // Populate selects
+        const pSel = document.getElementById('product_id');
+        pSel.innerHTML = '<option value="">Select Product</option>' + prods.map(p => `<option value="${p.product_id}">${p.product_name}</option>`).join('');
+        
+        const wSel = document.getElementById('warehouse_id');
+        wSel.innerHTML = '<option value="">Select Warehouse</option>' + whs.map(w => `<option value="${w.warehouse_id}">${w.warehouse_name}</option>`).join('');
+
+    } catch(e) {}
+}
+
+function openInventoryModal() {
+    editingId = null;
+    document.getElementById('inventory-form').reset();
+    document.getElementById('inventory_id').value = '';
+    document.getElementById('product_id').disabled = false;
+    document.getElementById('warehouse_id').disabled = false;
+    document.getElementById('modal-title').textContent = 'Add Inventory Record';
+    openModal('inventory-modal');
+}
+
+function updateQty(i) {
+    editingId = i.inventory_id;
+    document.getElementById('inventory_id').value = i.inventory_id;
+    document.getElementById('product_id').value = i.product_id;
+    document.getElementById('product_id').disabled = true; // Lock when updating qty
+    document.getElementById('warehouse_id').value = i.warehouse_id;
+    document.getElementById('warehouse_id').disabled = true; // Lock when updating qty
+    document.getElementById('quantity_available').value = i.quantity_available;
+    document.getElementById('modal-title').textContent = `Update Qty for ${i.product_name}`;
+    openModal('inventory-modal');
+}
+
+async function saveInventory() {
+    // enable disabled fields temporarily to gather form data
+    document.getElementById('product_id').disabled = false;
+    document.getElementById('warehouse_id').disabled = false;
+    
+    const data = getFormData('inventory-form');
+    if (!data.inventory_id) delete data.inventory_id;
+    // Server expects last_updated to be auto-handled, we just pass quantity_available, product_id, warehouse_id
+    
+    if (editingId) {
+        await submitForm(`/api/Inventory/${editingId}`, 'PUT', 'inventory-form', loadInventory);
+    } else {
+        await submitForm('/api/Inventory', 'POST', 'inventory-form', loadInventory);
+    }
+}
+
+async function deleteInventory(id) {
+    if(confirm('Are you sure you want to delete this inventory record?')) {
+        try {
+            await apiRequest(`/api/Inventory/${id}`, 'DELETE');
+            loadInventory();
+        } catch(e) {}
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadInventory);
+</script>
+{% endblock %}

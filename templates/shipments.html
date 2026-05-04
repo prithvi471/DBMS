@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="header">
+    <h1>Shipments</h1>
+    <button class="btn btn-primary" onclick="openShipmentModal()">Create Shipment</button>
+</div>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>Shipment ID</th>
+                <th>Order ID</th>
+                <th>Tracking Number</th>
+                <th>Shipment Date</th>
+                <th>Delivery Date</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="shipments-body">
+            <tr><td colspan="7">Loading...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal -->
+<div id="shipment-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modal-title">Create Shipment</h2>
+            <button class="close-btn" onclick="closeModal('shipment-modal')">&times;</button>
+        </div>
+        <form id="shipment-form" onsubmit="event.preventDefault(); saveShipment();">
+            <div class="form-group">
+                <label>Order ID</label>
+                <input type="number" name="order_id" id="order_id" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label>Tracking Number</label>
+                <input type="text" name="tracking_number" id="tracking_number" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label>Shipment Date</label>
+                <input type="date" name="shipment_date" id="shipment_date" class="form-control" required>
+            </div>
+            <button type="submit" class="btn btn-success">Save</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadShipments() {
+    try {
+        const data = await apiRequest('/api/Shipment');
+        const tbody = document.getElementById('shipments-body');
+        tbody.innerHTML = data.map(s => `
+            <tr>
+                <td>${s.shipment_id}</td>
+                <td>#${s.order_id}</td>
+                <td>${s.tracking_number || ''}</td>
+                <td>${s.shipment_date ? s.shipment_date.split('T')[0] : ''}</td>
+                <td>${s.delivery_date ? s.delivery_date.split('T')[0] : 'Not Delivered'}</td>
+                <td>${getBadgeHTML(s.status)}</td>
+                <td>
+                    ${s.status === 'IN_TRANSIT' ? `<button class="btn btn-success" onclick="markDelivered(${s.shipment_id})">Mark Delivered</button>` : ''}
+                    <button class="btn btn-danger" onclick="deleteShipment(${s.shipment_id})">Delete</button>
+                </td>
+            </tr>
+        `).join('') || '<tr><td colspan="7">No shipments found</td></tr>';
+    } catch(e) {}
+}
+
+function openShipmentModal() {
+    document.getElementById('shipment-form').reset();
+    openModal('shipment-modal');
+}
+
+async function saveShipment() {
+    const data = getFormData('shipment-form');
+    data.status = 'IN_TRANSIT';
+    try {
+        await submitForm('/api/Shipment', 'POST', 'shipment-form', loadShipments);
+        
+        // Also update order status to shipped when a shipment is created. Wait, let's just do it directly via api for robustness or backend handles it?
+        // Wait, requirements didn't specify updating order status automatically but it's good practice. I'll just save the shipment.
+    } catch(e) {}
+}
+
+async function markDelivered(id) {
+    try {
+        await apiRequest(`/api/shipments/${id}/deliver`, 'PUT');
+        loadShipments();
+    } catch(e) {}
+}
+
+async function deleteShipment(id) {
+    if(confirm('Are you sure you want to delete this shipment?')) {
+        try {
+            await apiRequest(`/api/Shipment/${id}`, 'DELETE');
+            loadShipments();
+        } catch(e) {}
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadShipments);
+</script>
+{% endblock %}

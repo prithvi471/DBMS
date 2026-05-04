@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="header">
+    <h1>Warehouses</h1>
+    <button class="btn btn-primary" onclick="openWarehouseModal()">Add Warehouse</button>
+</div>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Location</th>
+                <th>Capacity</th>
+                <th>Manager Name</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="warehouses-body">
+            <tr><td colspan="6">Loading...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal -->
+<div id="warehouse-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modal-title">Add Warehouse</h2>
+            <button class="close-btn" onclick="closeModal('warehouse-modal')">&times;</button>
+        </div>
+        <form id="warehouse-form" onsubmit="event.preventDefault(); saveWarehouse();">
+            <input type="hidden" name="warehouse_id" id="warehouse_id">
+            <div class="form-group">
+                <label>Warehouse Name</label>
+                <input type="text" name="warehouse_name" id="warehouse_name" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label>Location</label>
+                <input type="text" name="location" id="location" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Capacity</label>
+                <input type="number" name="capacity" id="capacity" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Manager Name</label>
+                <input type="text" name="manager_name" id="manager_name" class="form-control">
+            </div>
+            <button type="submit" class="btn btn-success">Save</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let editingId = null;
+
+async function loadWarehouses() {
+    try {
+        const data = await apiRequest('/api/Warehouse');
+        const tbody = document.getElementById('warehouses-body');
+        tbody.innerHTML = data.map(w => `
+            <tr>
+                <td>${w.warehouse_id}</td>
+                <td>${w.warehouse_name}</td>
+                <td>${w.location || ''}</td>
+                <td>${w.capacity || ''}</td>
+                <td>${w.manager_name || ''}</td>
+                <td>
+                    <button class="btn btn-outline" onclick='editWarehouse(${JSON.stringify(w).replace(/'/g, "&apos;")})'>Edit</button>
+                    <button class="btn btn-danger" onclick="deleteWarehouse(${w.warehouse_id})">Delete</button>
+                </td>
+            </tr>
+        `).join('') || '<tr><td colspan="6">No warehouses found</td></tr>';
+    } catch(e) {}
+}
+
+function openWarehouseModal() {
+    editingId = null;
+    document.getElementById('warehouse-form').reset();
+    document.getElementById('warehouse_id').value = '';
+    document.getElementById('modal-title').textContent = 'Add Warehouse';
+    openModal('warehouse-modal');
+}
+
+function editWarehouse(w) {
+    editingId = w.warehouse_id;
+    document.getElementById('warehouse_id').value = w.warehouse_id;
+    document.getElementById('warehouse_name').value = w.warehouse_name;
+    document.getElementById('location').value = w.location;
+    document.getElementById('capacity').value = w.capacity;
+    document.getElementById('manager_name').value = w.manager_name;
+    document.getElementById('modal-title').textContent = 'Edit Warehouse';
+    openModal('warehouse-modal');
+}
+
+async function saveWarehouse() {
+    const data = getFormData('warehouse-form');
+    if (!data.warehouse_id) delete data.warehouse_id;
+    
+    if (editingId) {
+        await submitForm(`/api/Warehouse/${editingId}`, 'PUT', 'warehouse-form', loadWarehouses);
+    } else {
+        await submitForm('/api/Warehouse', 'POST', 'warehouse-form', loadWarehouses);
+    }
+}
+
+async function deleteWarehouse(id) {
+    if(confirm('Are you sure you want to delete this warehouse?')) {
+        try {
+            await apiRequest(`/api/Warehouse/${id}`, 'DELETE');
+            loadWarehouses();
+        } catch(e) {}
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadWarehouses);
+</script>
+{% endblock %}
