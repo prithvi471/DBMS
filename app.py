@@ -144,6 +144,52 @@ def recent_orders():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# Chart Data APIs
+@app.route('/api/dashboard/orders-chart', methods=['GET'])
+def orders_chart():
+    query = """
+    SELECT order_date as date, SUM(total_amount) as total 
+    FROM Orders 
+    GROUP BY order_date 
+    ORDER BY order_date ASC 
+    LIMIT 10
+    """
+    try:
+        data = execute_query(query, fetch=True)
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/dashboard/top-products-chart', methods=['GET'])
+def top_products_chart():
+    query = """
+    SELECT p.product_name, SUM(od.quantity) as sold 
+    FROM Order_Details od 
+    JOIN Product p ON od.product_id = p.product_id 
+    GROUP BY p.product_id, p.product_name 
+    ORDER BY sold DESC 
+    LIMIT 5
+    """
+    try:
+        data = execute_query(query, fetch=True)
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/dashboard/inventory-chart', methods=['GET'])
+def inventory_chart():
+    query = """
+    SELECT w.warehouse_name, SUM(i.quantity_available) as total_stock 
+    FROM Inventory i 
+    JOIN Warehouse w ON i.warehouse_id = w.warehouse_id 
+    GROUP BY w.warehouse_id, w.warehouse_name
+    """
+    try:
+        data = execute_query(query, fetch=True)
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # Generic CRUD:
 @app.route('/api/<table>', methods=['GET'])
 def api_get_all(table):

@@ -24,6 +24,21 @@
     </div>
 </div>
 
+<div class="charts-grid">
+    <div class="chart-container">
+        <h3>Revenue Over Time</h3>
+        <canvas id="revenueChart"></canvas>
+    </div>
+    <div class="chart-container">
+        <h3>Top Selling Products</h3>
+        <canvas id="productsChart"></canvas>
+    </div>
+    <div class="chart-container">
+        <h3>Inventory Distribution</h3>
+        <canvas id="inventoryChart"></canvas>
+    </div>
+</div>
+
 <div class="header">
     <h2>Low Stock Alert</h2>
 </div>
@@ -104,6 +119,63 @@ document.addEventListener('DOMContentLoaded', async () => {
             </tr>
         `).join('') || '<tr><td colspan="5">No recent orders</td></tr>';
     } catch(e) {}
+
+    // Initialize Charts
+    const chartOptions = { responsive: true, plugins: { legend: { position: 'bottom' } } };
+
+    // Revenue Chart
+    try {
+        const revData = await apiRequest('/api/dashboard/orders-chart');
+        new Chart(document.getElementById('revenueChart'), {
+            type: 'line',
+            data: {
+                labels: revData.map(d => d.date ? d.date.split('T')[0] : ''),
+                datasets: [{
+                    label: 'Daily Revenue ($)',
+                    data: revData.map(d => d.total),
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: chartOptions
+        });
+    } catch(e) {}
+
+    // Top Products Chart
+    try {
+        const prodData = await apiRequest('/api/dashboard/top-products-chart');
+        new Chart(document.getElementById('productsChart'), {
+            type: 'bar',
+            data: {
+                labels: prodData.map(d => d.product_name),
+                datasets: [{
+                    label: 'Quantity Sold',
+                    data: prodData.map(d => d.sold),
+                    backgroundColor: ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6']
+                }]
+            },
+            options: chartOptions
+        });
+    } catch(e) {}
+
+    // Inventory Distribution Chart
+    try {
+        const invData = await apiRequest('/api/dashboard/inventory-chart');
+        new Chart(document.getElementById('inventoryChart'), {
+            type: 'doughnut',
+            data: {
+                labels: invData.map(d => d.warehouse_name),
+                datasets: [{
+                    data: invData.map(d => d.total_stock),
+                    backgroundColor: ['#8b5cf6', '#ec4899', '#14b8a6', '#f97316']
+                }]
+            },
+            options: chartOptions
+        });
+    } catch(e) {}
+
 });
 </script>
 {% endblock %}
